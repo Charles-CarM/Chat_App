@@ -1,77 +1,118 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react"
+import { HubConnectionBuilder } from "@microsoft/signalr"
 //import {Link} from 'react-router-dom'
-import "../styling/ChatroomPage.css";
-import axios from "axios";
-import ChatroomWebSocket from "./ChatroomWebSocket";
+import "../styling/ChatroomPage.css"
+import axios from "axios"
 
 function ChatroomPage() {
-  const [message, setMessage] = useState("");
-  const [users, setUsers] = useState([]);
+  const [message, setMessage] = useState("")
+  const [chatroom, setChatroom] = useState([])
+  const [hubConnection, setHubConnection] = useState(null)
 
-  //const baseUrl = process.env.REACT_APP_API_BASE_URL
-  const baseUrl = process.env.REACT_APP_API_BASE_URL;
+  const baseUrl = process.env.BASE_URL
 
   useEffect(() => {
-    const getUsersAndMessages = async () => {
-      //const response = await axios.get(`/api/users}`);
-      const response = await axios.get(`${baseUrl}/api/users`);
-      const fetchedUsers = response.data;
+    const connection = new HubConnectionBuilder()
+      .withUrl(`${baseUrl}/chatHub`, { withCredentials: true })
+      //.withUrl(`/chatHub`)
+      .withAutomaticReconnect()
+      .build()
 
-      const updatedUsers = fetchedUsers.map((user) => {
+    setHubConnection(connection)
+
+    connection
+      .start()
+      .catch((error) => {
+        console.log("connection failed", error)
+      })
+      .then(() => {
+        console.log("Websocket connection successful")
+
+        connection.on("ReceiveMessage", (user, message) => {
+          console.log(`${user} sent message: ${message}`)
+        })
+      })
+
+    return () => {
+      if (hubConnection) {
+        hubConnection.stop()
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const getChatroomFeed = async () => {
+      const response = await axios.get(`${baseUrl}/chatHub/api/messages`)
+      const requestChatroom = response.data
+
+      const updatedChatroom = requestChatroom.map((user) => {
         return {
+          id: user.id,
           username: user.username,
           messages: [],
-        };
-      });
-      setUsers(updatedUsers);
-    };
-
-    getUsersAndMessages();
-  }, [users]);
-
-  async function handleSendMessage(event) {
-    event.preventDefault();
-
-    if (!message.trim()) {
-      return;
+        }
+      })
+      setChatroom(updatedChatroom)
     }
 
-    const createNewMessage = {
-      text: message,
-    };
+    getChatroomFeed()
+  }, [])
 
-    const response = await axios.post(
-      `${baseUrl}/api/messages}`,
-      createNewMessage
-    );
-    const newMessage = response.data;
+  // const updatedUsers = users.map((user) => {
+  //   if (user.name === "Current User") {
+  //     return {
+  //       ...user,
+  //       messages: [...user.messages, newMessage],
+  //     }
+  //   }
+  //   return user
+  // })
 
-    const updatedUsers = users.map((user) => {
-      if (user.name === "Current User") {
-        return {
-          ...user,
-          messages: [...user.messages, newMessage],
-        };
-      }
-      return user;
-    });
+  // const updatedUsers = users.map((user) => {
+  //   if (user.username) {
+  //     return {
+  //       ...user,
+  //       messages: [...user.messages, newMessage],
+  //     }
+  //   }
+  //   return user
 
-    setUsers(updatedUsers);
-    setMessage("");
+  //setUsers(updatedUsers)
+  //only after a successful post
+  //setMessage("")
+
+  async function handleSendMessage(event) {
+    event.preventDefault()
+
+    if (!message.trim()) {
+      return
+    }
+
+    try {
+      const response = await axios.post(`${baseUrl}/chatHub/api/messages}`, {
+        text: message,
+      })
+
+      const newMessage = response.data
+
+      setChatroom((prevChatroom) => [...prevChatroom, newMessage])
+      setMessage("")
+    } catch (err) {
+      console.log(err)
+    }
   }
 
-  const renderMessage = users.flatMap((user) => {
+  const renderMessage = chatroom.flatMap((user) => {
     return user.messages.map((message) => (
       <li className="create--message" key={message.id}>
         <span className="username">{user.username}</span>
         <span className="content">{message.message}</span>
       </li>
-    ));
-  });
+    ))
+  })
 
   return (
     <div className="chatroomPage--container">
-      <ChatroomWebSocket baseUrl={baseUrl} />
       <span className="active--users">
         <h2>Active Now</h2>
         <ul>
@@ -95,8 +136,19 @@ function ChatroomPage() {
         />
         <button className="submit--message">Send</button>
       </form>
+
+      {/* // const sendMessage = async (message) => {
+  //   if (hubConnection && user && message) {
+  //     //if (hubConnection && username && message) {
+  //     try {
+  //       await hubConnection.invoke("SendMessage", user, message)
+  //     } catch (error) {
+  //       console.log(error)
+  //     }
+  //   }
+  // } */}
     </div>
-  );
+  )
 }
 
-export default ChatroomPage;
+export default ChatroomPage

@@ -8,35 +8,56 @@ namespace chatAppWebApi.Services
 {
     public class ChatroomService : IChatroomService
     {
-        private readonly HttpClient _httpClient;
-        public ChatroomService(HttpClient httpClient) 
-        { 
-            _httpClient = httpClient;
+        private readonly IChatroomRepository _chatroomRepository;
+        public ChatroomService(IChatroomRepository chatroomRepository)
+        {
+            _chatroomRepository = chatroomRepository;
         }
         public async Task<IEnumerable<MessageModel>> GetAllMessages()
         {
-            var allMessages = ChatroomRepository._messages;
+            var allMessages = await _chatroomRepository.GetAllMessages();
 
-            return await Task.FromResult(allMessages);
+            if (allMessages is not null)
+                {
+                    return allMessages;
+                }
+                else
+                {
+                    throw new Exception();
+                };
         }
-        public async Task<MessageModel> CreateMessage(string username, string message)
+        public async Task<MessageModel> CreateMessage(string user, string message)
         {
             var newMessage = new MessageModel
             {
                 Id = IncrementMessageId(),
-                UserName = username,
-                Message = message,
+                UserName = user,
+                Message = message
             };
 
-            ChatroomRepository._messages.Add(newMessage);
+            var response = await _chatroomRepository.CreateMessage(newMessage);
 
-            return await Task.FromResult(newMessage);
+                if (response is not null)
+                {
+                    return response;
+                }
+                else
+                {
+                    throw new Exception();
+                };
         }
         public async Task<IEnumerable<UserModel>> GetAllUsers()
         {
-            var allUsers = ChatroomRepository._users;
+            var allUsers = await _chatroomRepository.GetAllUsers();
 
-            return await Task.FromResult(allUsers);
+            if (allUsers is not null)
+            {
+                return allUsers;
+            }
+            else
+            {
+                throw new Exception();
+            };
         }
         public async Task<UserModel> CreateUser(string username)
         {
@@ -46,32 +67,41 @@ namespace chatAppWebApi.Services
                 UserName = username,
             };
 
-            ChatroomRepository._users.Add(newUser);
+            var response = await _chatroomRepository.CreateUser(newUser);
 
-            return await Task.FromResult(newUser);
+                if (response is not null)
+                {
+                    return response;
+                }
+                else
+                {
+                    throw new Exception();
+                };
         }
         public async Task<UserModel?> GetUser(int id)
         {
-            var getUser = ChatroomRepository._users
-                .SingleOrDefault(user => user.Id == id);
+            var matchingUser = await _chatroomRepository.GetUser(id);
 
-            return await Task.FromResult(getUser);
+                if (matchingUser is not null)
+                {
+                    return matchingUser;
+                }
+                else
+                {
+                    throw new Exception();
+                };
         }
         private int IncrementMessageId()
         {
-            int currentId = ChatroomRepository._messages.Max(message => message.Id);
+            var nextId = _chatroomRepository.IncrementMessageId();
 
-            int newMessageId = currentId + 1;
-
-            return newMessageId;
+            return nextId;
         }
         private int IncrementUserId()
         {
-            int currentId = ChatroomRepository._users.Max(message => message.Id);
+            var nextId = _chatroomRepository.IncrementUserId();
 
-            int newUserId = currentId + 1;
-
-            return newUserId;
+            return nextId;
         }
     }
 }

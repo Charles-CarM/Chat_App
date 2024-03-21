@@ -1,40 +1,27 @@
 using chatAppWebApi.Models;
+using chatAppWebApi.Repositories;
 using chatAppWebApi.Services;
 using chatAppWebApi.SignalR;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.OpenApi.Models;
-using System.Net.Http.Headers;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var services = builder.Services;
 
-services.AddScoped<IChatroomService, ChatroomService>();
-
-services.AddHttpClient<IChatroomService,ChatroomService>(client => 
-{
-    client.DefaultRequestHeaders.Accept.Clear();
-    client.BaseAddress = new Uri("https://localhost:7119/");
-    client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-});
-
 services.AddEndpointsApiExplorer();
-services.AddSwaggerGen(create =>
-{
-    create.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "Rabbit Chat",
-        Description = "Chat and collaborate as you wish",
-        Version = "v1"
-    });
-});
+services.AddSwaggerGen();
+
+// Add Postgres DBContext/Service here
+services.AddScoped<INpgsqlDataAccess,NpqsqlDataAccess >();
+
+// Add/Update Repository Service
+services.AddScoped<IChatroomRepository, ChatroomRepository>();
+services.AddScoped<IChatroomService, ChatroomService>();
 
 services.AddCors(options => 
 {
     options.AddPolicy("ReactAppPolicy", builder =>
     {
-        builder.WithOrigins("http://localhost:3000")
+        builder.WithOrigins("http://localhost:3001")
                .AllowAnyMethod()
                .AllowAnyHeader();     
     });
@@ -59,42 +46,41 @@ app.UseStaticFiles();
 
 app.UseCors("ReactAppPolicy");
 
+//app.ConfigureApi();
+
 app.UseEndpoints(endpoints =>
 {
-    endpoints.MapGet("/api/messages", async (HttpContext httpContext, IChatroomService chatRoom) =>
-    {
-        var result = await chatRoom.GetAllMessages();
-        await httpContext.Response.WriteAsJsonAsync(result);
-    });
-
-    endpoints.MapPost("/api/messages", async (HttpContext httpContext, IChatroomService chatRoom, string username, string message) =>
-    {
-        var result = chatRoom.CreateMessage(username, message);
-        await httpContext.Response.WriteAsJsonAsync(result.Result);
-    });
-
-    endpoints.MapGet("/api/users", async (HttpContext httpContext, IChatroomService chatRoom) =>
-    {
-        var result = await chatRoom.GetAllUsers();
-        await httpContext.Response.WriteAsJsonAsync(result);
-        //return Results.Ok(result);
-    });
-
-    endpoints.MapPost("/api/users", async (HttpContext httpContext, IChatroomService chatRoom, string username) =>
-    {
-        var result = chatRoom.CreateUser(username);
-        await httpContext.Response.WriteAsJsonAsync(result.Result);
-    });
-
-    endpoints.MapGet("/api/users/{id}", async (HttpContext httpContext, IChatroomService chatRoom, int id) =>
-    {
-        var result = await chatRoom.GetUser(id);
-        await httpContext.Response.WriteAsJsonAsync(result);
-        //return Results.Ok(result);
-    });
-
     endpoints.MapHub<ChatHub>("/chatHub");
 
+    endpoints.MapPost("/chatHub/api/messages", async (IChatroomService chatRoom, string username, string message) =>
+    {
+        var response = await chatRoom.CreateMessage(username, message);
+        return Results.Ok(response);
+    });
+
+    endpoints.MapGet("/chatHub/api/messages", async (IChatroomService chatRoom) =>
+    {
+        var response = await chatRoom.GetAllMessages();
+        return Results.Ok(response);
+    });
+
+    endpoints.MapGet("/api/users", async (IChatroomService chatRoom) =>
+    {
+        var response = await chatRoom.GetAllUsers();
+        return Results.Ok(response);
+    });
+
+    endpoints.MapPost("/api/users", async (IChatroomService chatRoom, string username) =>
+    {
+        var response = await chatRoom.CreateUser(username);
+        return Results.Ok(response);
+    });
+
+    endpoints.MapGet("/api/users/{id}", async (IChatroomService chatRoom, int id) =>
+    {
+        var response = await chatRoom.GetUser(id);
+        return Results.Ok(response);
+    });
 
     endpoints.MapFallback(async context =>
     {
